@@ -1,5 +1,9 @@
 import streamlit as st
 from datetime import datetime
+import os
+import pandas as pd
+
+EXCEL_FILE = "stunden_daten.xlsx"
 
 # تنظیمات صفحه
 st.set_page_config(page_title="Stundenübersicht", page_icon="⏱️", layout="centered")
@@ -31,7 +35,39 @@ with st.form("stunden_form"):
     submitted = st.form_submit_button("Stunden speichern")
     
     if submitted:
+        new_data = pd.DataFrame([{
+            "Mitarbeiter": username,
+            "Datum": str(date),
+            "Stunden": hours,
+            "Beschreibung": description,
+            "Eingetragen am": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        }])
+        
+        # ذخیره در فایل اکسل
+        if os.path.exists(EXCEL_FILE):
+            df_existing = pd.read_excel(EXCEL_FILE)
+            df_final = pd.concat([df_existing, new_data], ignore_index=True)
+        else:
+            df_final = new_data
+            
+        df_final.to_excel(EXCEL_FILE, index=false)
         st.success(f"✅ Arbeitsstunden für **{username}** erfolgreich gespeichert!")
-        st.write(f"- Datum: {date}")
-        st.write(f"- Stunden: {hours}")
-        st.write(f"- Beschreibung: {description}")
+
+# --- نمایش گزارش‌ها ---
+st.divider()
+st.subheader("📊 Bisherige Erfassungen")
+
+if os.path.exists(EXCEL_FILE):
+    df_all = pd.read_excel(EXCEL_FILE)
+    st.dataframe(df_all, use_container_width=True)
+    
+    # دکمه دانلود فایل اکسل
+    with open(EXCEL_FILE, "rb") as f:
+        st.download_button(
+            label="📥 Excel-Liste herunterladen",
+            data=f,
+            file_name="stunden_uebersicht.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
+else:
+    st.info("Noch keine Einträge vorhanden.")
