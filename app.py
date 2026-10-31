@@ -1,18 +1,18 @@
 import streamlit as st
-from datetime import datetime
 import os
-import pandas as pd
+import json
+from datetime import datetime
+import openpyxl
+from openpyxl.styles import Font, Alignment, Border, Side
+import io
 
-EXCEL_FILE = "stunden_daten.xlsx"
-
-# تنظیمات صفحه
 st.set_page_config(page_title="Stundenübersicht", page_icon="⏱️", layout="centered")
 
-st.title("⏱️ Zeiterfassung für Mitarbeiter")
+st.title("⏱️ Stundenübersicht")
 
-# --- بخش ورود / انتخاب نام کاربر ---
+# --- بخش ورود / نام پرسنل در منوی کناری ---
 st.sidebar.header("🔐 Anmeldung")
-username = st.sidebar.text_input("Vor- und Nachname eingeben:")
+username = st.sidebar.text_input("Name des Mitarbeiters:")
 
 if not username:
     st.warning("⚠️ Bitte geben Sie Ihren Namen in der Seitenleiste ein, um fortzufahren.")
@@ -20,54 +20,69 @@ if not username:
 
 st.success(f"Willkommen, **{username}**! Sie können jetzt Ihre Arbeitszeiten erfassen.")
 
-# --- فرم ثبت ساعات کاری ---
-st.subheader("📝 Neue Arbeitsstunden erfassen")
+# دریافت تاریخ
+today = datetime.now()
+date_input = st.date_input("Datum (TT.MM.JJJJ)", value=today)
+datum_str = date_input.strftime("%d.%m.%Y")
+jahr_str = str(date_input.year)
+monat_int = date_input.month
 
-with st.form("stunden_form"):
-    col1, col2 = st.columns(2)
-    with col1:
-        date = st.date_input("Datum", datetime.today())
-    with col2:
-        hours = st.number_input("Arbeitsstunden", min_value=1.0, max_value=16.0, value=8.0, step=0.5)
-    
-    description = st.text_area("Beschreibung (z.B. Kabelverlegung, Steckdosen montieren)")
-    
-    submitted = st.form_submit_button("Stunden speichern")
-    
-    if submitted:
-        new_data = pd.DataFrame([{
-            "Mitarbeiter": username,
-            "Datum": str(date),
-            "Stunden": hours,
-            "Beschreibung": description,
-            "Eingetragen am": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        }])
-        
-        # ذخیره در فایل اکسل
-        if os.path.exists(EXCEL_FILE):
-            df_existing = pd.read_excel(EXCEL_FILE)
-            df_final = pd.concat([df_existing, new_data], ignore_index=True)
+# انتخاب پروژه
+project_type = st.selectbox("Text / Projekt:", ["Bitte wählen", "Erftland", "Auftrag"])
+
+detail_val = ""
+if project_type == "Erftland":
+    detail_val = st.text_input("Adresse eingeben:")
+elif project_type == "Auftrag":
+    detail_val = st.text_input("Auftragsnummer eingeben:")
+
+# ساعات استراحت و کار
+pause_input = st.text_input("Pause (z.B. 0,0):", value="0,0")
+hours_input = st.text_input("Geleistete Std (z.B. 00:00):", value="00:00")
+
+def format_hours_four_digits(val_str, is_hours_field=False):
+    if not val_str or val_str.strip() == "":
+        return "00:00" if is_hours_field else "0,0"
+    val_str = val_str.strip().replace(".", ",")
+    if "," in val_str:
+        parts = val_str.split(",")
+        integer_part = parts[0] if parts[0] else "0"
+        decimal_part = parts[1] if len(parts) > 1 else ""
+        if len(decimal_part) == 1:
+            decimal_part += "0"
+        elif len(decimal_part) == 0:
+            decimal_part = "00"
         else:
-            df_final = new_data
-            
-        df_final.to_excel(EXCEL_FILE, index=false)
-        st.success(f"✅ Arbeitsstunden für **{username}** erfolgreich gespeichert!")
+            decimal_part = decimal_part[:2]
+        if is_hours_field:
+            if len(integer_part) == 1:
+                integer_part = "0" + integer_part
+            return f"{integer_part}:{decimal_part}"
+        return f"{integer_part},{decimal_part}"
+    else:
+        if is_hours_field:
+            if len(val_str) == 1:
+                val_str = "0" + val_str
+            return f"{val_str}:00"
+        return f"{val_str},0"
 
-# --- نمایش گزارش‌ها ---
-st.divider()
-st.subheader("📊 Bisherige Erfassungen")
+DATA_DIR = "data"
+if not os.path.exists(DATA_DIR):
+    os.makedirs(DATA_DIR)
 
-if os.path.exists(EXCEL_FILE):
-    df_all = pd.read_excel(EXCEL_FILE)
-    st.dataframe(df_all, use_container_width=True)
-    
-    # دکمه دانلود فایل اکسل
-    with open(EXCEL_FILE, "rb") as f:
-        st.download_button(
-            label="📥 Excel-Liste herunterladen",
-            data=f,
-            file_name="stunden_uebersicht.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-        )
-else:
-    st.info("Noch keine Einträge vorhanden.")
+def get_filenames(jahr, monat):
+    base_name = f"stunden_{int(monat):02d}_{int(jahr)}"
+    excel_path = os.path.join(DATA_DIR, f"{base_name}.xlsx")
+    json_path = os.path.join(DATA_DIR, f"{base_name}.json")
+    return excel_path, json_path
+
+def generate_excel_bytes(jahr, monat):
+    excel_path, json_path = get_filenames(jahr, monat)
+    records_dict = {}
+    if os.path.exists(json_path):
+        try:
+            with open(json_path, "r", encoding="utf-8") as f:
+                data_list = json.load(f)
+                for rec in data_list:
+                    d_str = rec.get("datum", "")
+                    if d_str:
