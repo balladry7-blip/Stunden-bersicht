@@ -86,3 +86,156 @@ def generate_excel_bytes(jahr, monat):
                 for rec in data_list:
                     d_str = rec.get("datum", "")
                     if d_str:
+                        day_num = int(d_str.split(".")[0])
+                        records_dict[day_num] = rec
+        except:
+            records_dict = {}
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Stundenübersicht"
+    
+    font_title = Font(name="Calibri", size=14, bold=True)
+    font_header = Font(name="Calibri", size=11, bold=True)
+    thin_border = Border(left=Side(style='thin', color='000000'), right=Side(style='thin', color='000000'), top=Side(style='thin', color='000000'), bottom=Side(style='thin', color='000000'))
+    
+    ws['A1'] = f"Stundenübersicht : {username}"
+    ws['A1'].font = font_title
+    ws.row_dimensions[1].height = 30
+    
+    ws['A3'] = "Datum"
+    ws['B3'] = "Jahr"
+    ws['C3'] = "Text"
+    ws['E3'] = "Pause"
+    ws['F3'] = "geleistete Std"
+    
+    for col in ['A', 'B', 'C', 'E', 'F']:
+        cell = ws[f'{col}3']
+        cell.font = font_header
+        cell.alignment = Alignment(horizontal="center", vertical="center")
+        
+    ws['A4'] = "Datum"
+    ws['B4'] = "Jahr"
+    ws['C4'] = "Projekt"
+    ws['D4'] = "Monteur"
+    ws['E4'] = ""
+    ws['F4'] = "Pause"
+    ws['G4'] = "0,00"
+    
+    for col_idx, col_letter in enumerate(['A', 'B', 'C', 'D', 'E', 'F', 'G'], 1):
+        cell = ws.cell(row=4, column=col_idx)
+        cell.font = font_header
+        cell.border = thin_border
+        cell.alignment = Alignment(horizontal="center", vertical="center")
+
+    for day_idx in range(1, 32):
+        r = 4 + day_idx
+        ws.row_dimensions[r].height = 18
+        if day_idx in records_dict:
+            rec = records_dict[day_idx]
+            ws.cell(row=r, column=1, value=str(rec.get("datum", "")))
+            ws.cell(row=r, column=2, value=str(rec.get("jahr", str(jahr))))
+            ws.cell(row=r, column=3, value=str(rec.get("text", "")))
+            ws.cell(row=r, column=4, value=str(rec.get("mitarbeiter", username)))
+            ws.cell(row=r, column=6, value=str(rec.get("pause", "0,0")))
+            ws.cell(row=r, column=7, value=str(rec.get("hours", "00:00")))
+        else:
+            ws.cell(row=r, column=1, value=f"{day_idx:02d}.{int(monat):02d}.{jahr}")
+            ws.cell(row=r, column=2, value=str(jahr))
+            ws.cell(row=r, column=3, value="")
+            ws.cell(row=r, column=4, value="")
+            ws.cell(row=r, column=6, value="0,0")
+            ws.cell(row=r, column=7, value="00:00")
+        
+        for col_idx, col_letter in enumerate(['A', 'B', 'C', 'D', 'E', 'F', 'G'], 1):
+            cell = ws.cell(row=r, column=col_idx)
+            cell.border = thin_border
+            if col_letter in ['A', 'B', 'F']:
+                cell.alignment = Alignment(horizontal="center", vertical="center")
+            elif col_letter == 'G':
+                cell.alignment = Alignment(horizontal="right", vertical="center")
+            else:
+                cell.alignment = Alignment(horizontal="left", vertical="center")
+
+    row_flex = 36
+    row_summe = 37
+    row_end = 39
+    ws[f'C{row_flex}'] = "Flex Vormonat"
+    ws[f'A{row_summe}'] = "Summe :"
+    ws[f'A{row_end}'] = "Endbestand :"
+    
+    for r in [row_flex, row_summe, row_end]:
+        ws.row_dimensions[r].height = 20
+        for col_letter in ['A', 'B', 'C', 'D', 'E', 'F', 'G']:
+            cell = ws[f'{col_letter}{r}']
+            cell.border = thin_border
+            if r == row_summe and col_letter == 'G':
+                cell.value = "0,00"
+            if r == row_end and col_letter == 'G':
+                cell.value = "-174,00"
+
+    output = io.BytesIO()
+    wb.save(output)
+    output.seek(0)
+    return output
+
+# دکمه ذخیره
+if st.button("Eintrag speichern", type="primary"):
+    if project_type == "Bitte wählen":
+        st.error("Bitte wählen Sie Erftland oder Auftrag aus!")
+    elif not detail_val:
+        msg = "Bitte geben Sie die Adresse ein!" if project_type == "Erftland" else "Bitte geben Sie die Auftragsnummer ein!"
+        st.error(msg)
+    else:
+        text_result = f"{project_type}: {detail_val}"
+        _, json_path = get_filenames(jahr_str, monat_int)
+        
+        records = []
+        if os.path.exists(json_path):
+            try:
+                with open(json_path, "r", encoding="utf-8") as f:
+                    records = json.load(f)
+            except:
+                records = []
+
+        updated = False
+        for rec in records:
+            if rec.get("datum") == datum_str:
+                rec["jahr"] = jahr_str
+                rec["text"] = text_result
+                rec["mitarbeiter"] = username
+                rec["pause"] = format_hours_four_digits(pause_input, False)
+                rec["hours"] = format_hours_four_digits(hours_input, True)
+                updated = True
+                break
+
+        if not updated:
+            new_record = {
+                "datum": datum_str,
+                "jahr": jahr_str,
+                "text": text_result,
+                "mitarbeiter": username,
+                "pause": format_hours_four_digits(pause_input, False),
+                "hours": format_hours_four_digits(hours_input, True)
+            }
+            records.append(new_record)
+
+        with open(json_path, "w", encoding="utf-8") as f:
+            json.dump(records, f, ensure_ascii=False, indent=4)
+
+        st.success(f"Der Eintrag für **{username}** wurde erfolgreich gespeichert!")
+
+st.divider()
+
+# بخش دانلود اکسل
+st.subheader("Excel-Datei herunterladen")
+sel_monat = st.selectbox("Monat wählen:", list(range(1, 13)), index=datetime.now().month - 1)
+sel_jahr = st.selectbox("Jahr wählen:", [2024, 2025, 2026, 2027], index=2)
+
+excel_data = generate_excel_bytes(sel_jahr, sel_monat)
+st.download_button(
+    label="📥 Excel-Datei herunterladen",
+    data=excel_data,
+    file_name=f"stunden_{sel_monat:02d}_{sel_jahr}.xlsx",
+    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+)
