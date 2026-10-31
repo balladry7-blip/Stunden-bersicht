@@ -2,38 +2,36 @@ import streamlit as st
 from datetime import datetime
 
 # تنظیمات صفحه
-st.set_page_config(page_title="سیستم ثبت ساعات کاری", page_icon="⏱️", layout="centered")
+st.set_page_config(page_title="Stundenübersicht", page_icon="⏱️", layout="centered")
 
-st.title("⏱️ سیستم ثبت ساعات کاری پرسنل")
+st.title("⏱️ Zeiterfassung für Mitarbeiter")
 
 # --- بخش ورود / انتخاب نام کاربر ---
-st.sidebar.header("🔐 ورود به سیستم")
-username = st.sidebar.text_input("نام و نام خانوادگی خود را وارد کنید:")
+st.sidebar.header("🔐 Anmeldung")
+username = st.sidebar.text_input("Vor- und Nachname eingeben:")
 
 if not username:
-    st.warning("⚠️ لطفاً برای شروع، نام خود را از منوی سمت راست وارد کنید.")
+    st.warning("⚠️ Bitte geben Sie Ihren Namen in der Seitenleiste ein, um fortzufahren.")
     st.stop()
 
-st.success( خوش آمدید، **{username}** عزیز! شما اکنون می‌توانید ساعات کاری خود را ثبت کنید.")
+st.success(f"Willkommen, **{username}**! Sie können jetzt Ihre Arbeitszeiten erfassen.")
 
 # --- فرم ثبت ساعات کاری ---
-st.subheader("📝 ثبت ساعت جدید")
+st.subheader("📝 Neue Arbeitsstunden erfassen")
 
 with st.form("stunden_form"):
     col1, col2 = st.columns(2)
     with col1:
-        date = st.date_input("تاریخ", datetime.today())
+        date = st.date_input("Datum", datetime.today())
     with col2:
-        hours = st.number_input("تعداد ساعت کاری", min_value=1.0, max_value=16.0, value=8.0, step=0.5)
+        hours = st.number_input("Arbeitsstunden", min_value=1.0, max_value=16.0, value=8.0, step=0.5)
     
-    description = st.text_area("توضیحات کار (مثلاً: کابل‌کشی، نصب پریز و کلید)")
+    description = st.text_area("Beschreibung (z.B. Kabelverlegung, Steckdosen montieren)")
     
-    submitted = st.form_submit_button("ثبت ساعت")
+    submitted = st.form_submit_button("Stunden speichern")
     
     if submitted:
-        # اینجا می‌توانید اطلاعات را ذخیره کنید (مثلاً در فایل اکسل یا لیست)
-        st.success(f"✅ ساعت کاری با موفقیت برای **{username}** ثبت شد!")
-        # نمایش اطلاعات ثبت شده به عنوان نمونه
-        st.write(f"- تاریخ: {date}")
-        st.write(f"- ساعت: {hours}")
-        st.write(f"- توضیحات: {description}")
+        st.success(f"✅ Arbeitsstunden für **{username}** erfolgreich gespeichert!")
+        st.write(f"- Datum: {date}")
+        st.write(f"- Stunden: {hours}")
+        st.write(f"- Beschreibung: {description}")
