@@ -10,9 +10,20 @@ st.set_page_config(page_title="Stundenübersicht", page_icon="⏱️", layout="c
 
 st.title("⏱️ Stundenübersicht")
 
+# --- مدیریت حافظه موقت برای نام کاربر ---
+if "username" not in st.session_state:
+    st.session_state.username = ""
+
 # --- بخش ورود / نام پرسنل در منوی کناری ---
 st.sidebar.header("🔐 Anmeldung")
-username = st.sidebar.text_input("Name des Mitarbeiters:")
+
+# فیلد ورود نام که نام قبلی را حفظ می‌کند
+input_name = st.sidebar.text_input("Name des Mitarbeiters:", value=st.session_state.username)
+
+if input_name:
+    st.session_state.username = input_name.strip()
+
+username = st.session_state.username
 
 if not username:
     st.warning("⚠️ Bitte geben Sie Ihren Namen in der Seitenleiste ein, um fortzufahren.")
